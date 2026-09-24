@@ -130,15 +130,34 @@ def fake_judge_factory(calls):
 def test_store_roundtrip_and_rebucket(db, cfg):
     store = Store()
     papers = [make_paper(i) for i in range(6)]
-    store.save(papers, fake_judge_factory([])(papers, cfg), "2026-09-24")
-    assert store.unjudged(papers + [make_paper(9)]) == [make_paper(9)]
+    store.save(papers, fake_judge_factory([])(papers, cfg), "2026-09-24", "k1")
+    assert store.needs_judging(papers + [make_paper(9)], "k1") == [make_paper(9)]
+    assert store.needs_judging(papers, "k2") == papers  # other profile: all stale
     rows = store.digest("2026-09-24")
     assert [r["bucket"] for r in rows] == [PICK, PICK, UNSURE, UNSURE, HIDE, HIDE]
-    store.rebucket("2026-09-24", top_n=1, rank_by="similarity")
+    store.rebucket("2026-09-24", top_n=1, rank_by="similarity", profile_key="k1", categories=["cs.LG"])
     assert [r["bucket"] for r in store.digest("2026-09-24")][:2] == [PICK, UNSURE]
+    assert store.digest("2026-09-24", "k2") == []
+    assert store.digest("2026-09-24", "k1", ["cs.CL"]) == []
     store.rate(papers[0].id, True)
     store.rate(papers[5].id, False)
     assert {(r["paper_id"], r["rated"]) for r in store.rated()} == {(papers[0].id, 1), (papers[5].id, 0)}
+
+
+def test_old_database_is_migrated(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "old.sqlite"
+    old = sqlite3.connect(path)
+    old.executescript(
+        "CREATE TABLE decisions (paper_id TEXT PRIMARY KEY, digest_date TEXT NOT NULL, sim REAL NOT NULL, "
+        "p_relevant REAL, confidence REAL, bucket TEXT NOT NULL, model TEXT NOT NULL, latency_ms REAL NOT NULL);"
+        "INSERT INTO decisions VALUES ('2609.00001', '2026-09-24', 0.9, NULL, NULL, 'hide', 'english', 1.0);"
+    )
+    old.commit()
+    old.close()
+    store = Store(path)
+    assert store.needs_judging([make_paper(1)], "any") == [make_paper(1)]  # pre-migration rows are stale
 
 
 def test_metrics():
@@ -305,3 +324,22 @@ def test_pick_key_sentence_prefers_earlier_near_ties():
     assert judge.pick_key_sentence(ss, [0.39, 0.83, 0.84, 0.54]) == "We introduce X."
     assert judge.pick_key_sentence(ss, [0.39, 0.70, 0.84, 0.54]) == "Detail of X."
     assert judge.pick_key_sentence(["Only one."], [0.1]) == "Only one."
+
+
+def test_cli_profile_or_category_change_rescores_and_filters(cfg, db, monkeypatch):
+    papers = [make_paper(i) for i in range(4)]
+    calls = []
+    monkeypatch.setattr(sources, "fetch_today", lambda cats, limit: papers[:limit])
+    monkeypatch.setattr(judge, "judge", fake_judge_factory(calls))
+    monkeypatch.setattr(config, "load", lambda _p=None: cfg)
+
+    assert cli.main(["today"]) == 0
+    Store().rate(papers[0].id, True)
+    cfg.profile = "Someone else entirely."
+    assert cli.main(["today"]) == 0
+    assert calls == [4, 4]  # every paper re-scored under the new profile
+    assert len(Store().rated()) == 1  # ratings survive
+    assert len(cli._day_rows(Store(), cfg, Store().latest_digest_date())) == 4
+
+    cfg.categories = ["q-fin.EC"]  # none of the papers are in it
+    assert cli._day_rows(Store(), cfg, Store().latest_digest_date()) == []

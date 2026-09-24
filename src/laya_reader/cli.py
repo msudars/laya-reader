@@ -23,6 +23,11 @@ from .store import Store
 console = Console()
 
 
+def _day_rows(store: Store, cfg: config.Config, digest_date: str):
+    """The day's papers as the current profile sees them: its scores, its categories."""
+    return store.digest(digest_date, judge.profile_key(cfg), cfg.categories)
+
+
 def cmd_today(args, cfg: config.Config, store: Store) -> int:
     on = date.fromisoformat(args.date) if args.date else None
     digest_date = (on or date.today()).isoformat()
@@ -37,8 +42,9 @@ def cmd_today(args, cfg: config.Config, store: Store) -> int:
     except sources.FetchError as e:
         console.print(f"[red]{e}[/red]")
         return 1
-    new = store.unjudged(papers)
-    console.print(f"Fetched {len(papers)} papers, {len(new)} not judged before.")
+    key = judge.profile_key(cfg)
+    new = store.needs_judging(papers, key)
+    console.print(f"Fetched {len(papers)} papers, {len(new)} to score (new, or scored under an older profile).")
 
     elapsed = 0.0
     if new:
@@ -48,11 +54,12 @@ def cmd_today(args, cfg: config.Config, store: Store) -> int:
             task = progress.add_task(f"Laya ({cfg.model}) is reading…", total=total)
             decisions = judge.judge(new, cfg, progress=lambda n: progress.advance(task, n))
         elapsed = time.perf_counter() - start
-        store.save(new, decisions, digest_date)
-        store.rebucket(digest_date, cfg.top_n, cfg.rank_by)
+        store.save(new, decisions, digest_date, key)
+    # Always, so edits to top_n / rank_by / categories apply without re-scoring.
+    store.rebucket(digest_date, cfg.top_n, cfg.rank_by, key, cfg.categories)
 
-    rows = store.digest(digest_date)
-    footer = f" · {elapsed:.0f}s for {len(new)} new" if new else ""
+    rows = _day_rows(store, cfg, digest_date)
+    footer = f" · {elapsed:.0f}s to score {len(new)}" if new else ""
     digest.print_digest(console, rows, digest_date, cfg.rank_by, footer)
     if not args.no_md and rows:
         path = digest.write_markdown(cfg.digest_dir / f"{digest_date}.md", rows, digest_date, cfg.rank_by)
@@ -68,7 +75,7 @@ def cmd_rate(args, cfg: config.Config, store: Store) -> int:
     if not digest_date:
         console.print("Nothing to rate yet. Run: laya-reader today")
         return 1
-    rows = store.digest(digest_date)
+    rows = _day_rows(store, cfg, digest_date)
     unrated = [r for r in rows if r["rated"] is None]
 
     if args.all:
@@ -121,7 +128,7 @@ def cmd_post(args, cfg: config.Config, store: Store) -> int:
     if not digest_date:
         console.print("Nothing to summarise yet. Run: laya-reader today")
         return 1
-    rows = store.digest(digest_date)
+    rows = _day_rows(store, cfg, digest_date)
     best = post.ranked(rows, cfg.rank_by)[: cfg.post_total]
     top, also = best[: cfg.post_top], best[cfg.post_top :]
     papers = [sources.Paper(r["paper_id"], r["title"], r["abstract"], r["url"], "", []) for r in top]

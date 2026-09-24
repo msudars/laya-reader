@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS decisions (
     confidence REAL,
     bucket TEXT NOT NULL,             -- pick | unsure | hide
     model TEXT NOT NULL,
-    latency_ms REAL NOT NULL
+    latency_ms REAL NOT NULL,
+    profile_key TEXT                  -- judge.profile_key() of the profile that scored it
 );
 CREATE TABLE IF NOT EXISTS ratings (
     paper_id TEXT PRIMARY KEY REFERENCES papers(id),
@@ -53,49 +54,66 @@ class Store:
         self.db = sqlite3.connect(path)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        # Databases from before profile_key existed: add it; their rows count as stale.
+        cols = {r["name"] for r in self.db.execute("PRAGMA table_info(decisions)")}
+        if "profile_key" not in cols:
+            self.db.execute("ALTER TABLE decisions ADD COLUMN profile_key TEXT")
 
     def close(self):
         self.db.close()
 
-    def unjudged(self, papers: list[Paper]) -> list[Paper]:
-        judged = {r[0] for r in self.db.execute("SELECT paper_id FROM decisions")}
-        return [p for p in papers if p.id not in judged]
+    def needs_judging(self, papers: list[Paper], profile_key: str) -> list[Paper]:
+        """Papers never judged, or judged under a different profile (their scores are stale)."""
+        current = {
+            r[0] for r in self.db.execute("SELECT paper_id FROM decisions WHERE profile_key = ?", (profile_key,))
+        }
+        return [p for p in papers if p.id not in current]
 
-    def save(self, papers: list[Paper], decisions: list[Decision], digest_date: str):
+    def save(self, papers: list[Paper], decisions: list[Decision], digest_date: str, profile_key: str):
         with self.db:
             self.db.executemany(
                 "INSERT OR REPLACE INTO papers VALUES (?, ?, ?, ?, ?, ?)",
                 [(p.id, p.title, p.abstract, p.url, p.published, json.dumps(p.categories)) for p in papers],
             )
             self.db.executemany(
-                """INSERT OR REPLACE INTO decisions VALUES
-                   (:paper_id, :digest_date, :sim, :p_relevant, :confidence, :bucket, :model, :latency_ms)""",
-                [{**asdict(d), "digest_date": digest_date} for d in decisions],
+                """INSERT OR REPLACE INTO decisions
+                   (paper_id, digest_date, sim, p_relevant, confidence, bucket, model, latency_ms, profile_key)
+                   VALUES (:paper_id, :digest_date, :sim, :p_relevant, :confidence, :bucket, :model,
+                           :latency_ms, :profile_key)""",
+                [{**asdict(d), "digest_date": digest_date, "profile_key": profile_key} for d in decisions],
             )
 
-    def rebucket(self, digest_date: str, top_n: int, rank_by: str):
-        """Recompute picks over the whole day, so a second run the same day merges in."""
-        order = "p_relevant" if rank_by == "laya" else "sim"
-        ids = [r[0] for r in self.db.execute(
-            f"SELECT paper_id FROM decisions WHERE digest_date = ? AND p_relevant IS NOT NULL ORDER BY {order} DESC",
-            (digest_date,),
-        )]
+    def rebucket(self, digest_date: str, top_n: int, rank_by: str, profile_key: str, categories: list[str]):
+        """Recompute picks over the day's visible papers, so a second run the same day merges in."""
+        shortlist = [r for r in self.digest(digest_date, profile_key, categories) if r["p_relevant"] is not None]
+        shortlist.sort(key=lambda r: -(r["p_relevant"] if rank_by == "laya" else r["sim"]))
         with self.db:
             self.db.executemany(
                 "UPDATE decisions SET bucket = ? WHERE paper_id = ?",
-                [(PICK if i < top_n else UNSURE, pid) for i, pid in enumerate(ids)],
+                [(PICK if i < top_n else UNSURE, r["paper_id"]) for i, r in enumerate(shortlist)],
             )
 
-    def digest(self, digest_date: str) -> list[sqlite3.Row]:
-        """All papers judged on `digest_date`, most similar first."""
-        return self.db.execute(
+    def digest(
+        self, digest_date: str, profile_key: str | None = None, categories: list[str] | None = None
+    ) -> list[sqlite3.Row]:
+        """Papers judged on `digest_date`, most similar first.
+
+        With `profile_key`, only those scored under that profile; with `categories`,
+        only papers in at least one of them (so editing profile.toml never mixes in
+        scores or categories from before the edit).
+        """
+        rows = self.db.execute(
             """SELECT d.*, p.title, p.abstract, p.url, p.categories, r.relevant AS rated
                FROM decisions d JOIN papers p ON p.id = d.paper_id
                LEFT JOIN ratings r ON r.paper_id = d.paper_id
-               WHERE d.digest_date = ?
+               WHERE d.digest_date = ? AND (? IS NULL OR d.profile_key = ?)
                ORDER BY d.sim DESC""",
-            (digest_date,),
+            (digest_date, profile_key, profile_key),
         ).fetchall()
+        if categories is not None:
+            wanted = set(categories)
+            rows = [r for r in rows if wanted & set(json.loads(r["categories"]))]
+        return rows
 
     def latest_digest_date(self) -> str | None:
         return self.db.execute("SELECT MAX(digest_date) FROM decisions").fetchone()[0]

@@ -43,6 +43,22 @@ def build_state(cfg: Config, paper: Paper) -> str:
     return f"Reader's interests: {cfg.profile}\n\nPaper: {paper_text(paper)}"
 
 
+# Bump when scoring changes (questions, state format, embedding length) so old scores are redone.
+SCORING_VERSION = 1
+
+
+def profile_key(cfg: Config) -> str:
+    """Fingerprint of everything that determines a paper's scores."""
+    import hashlib
+    import json
+
+    blob = json.dumps(
+        {"profile": cfg.profile, "model": cfg.model, "embed_max_len": EMBED_MAX_LEN, "v": SCORING_VERSION},
+        sort_keys=True,
+    )
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+
 def build_questions(cfg: Config) -> dict:
     # No criteria: the README warns noul tends to follow true/false option labels.
     return {
