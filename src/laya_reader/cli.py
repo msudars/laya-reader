@@ -12,11 +12,12 @@ from datetime import date
 from pathlib import Path
 
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.markup import escape
 from rich.progress import Progress
 from rich.table import Table
 
-from . import config, digest, judge, metrics, rating, sources
+from . import config, digest, judge, metrics, post, rating, sources
 from .store import Store
 
 console = Console()
@@ -58,6 +59,7 @@ def cmd_today(args, cfg: config.Config, store: Store) -> int:
         console.print(f"[dim]Wrote {path}[/dim]")
     if rows:
         console.print(f"[dim]Teach it with {cfg.daily_ratings} quick ratings (~1 min): laya-reader rate[/dim]")
+        console.print("[dim]No time to read? One-page summary: laya-reader post[/dim]")
     return 0
 
 
@@ -111,6 +113,24 @@ def cmd_rate(args, cfg: config.Config, store: Store) -> int:
             store.rate(r["paper_id"], action == "y")
             done += 1
     console.print(f"Saved {done} ratings. See how Laya is doing: laya-reader stats")
+    return 0
+
+
+def cmd_post(args, cfg: config.Config, store: Store) -> int:
+    digest_date = args.date or store.latest_digest_date()
+    if not digest_date:
+        console.print("Nothing to summarise yet. Run: laya-reader today")
+        return 1
+    rows = store.digest(digest_date)
+    best = post.ranked(rows, cfg.rank_by)[: cfg.post_total]
+    top, also = best[: cfg.post_top], best[cfg.post_top :]
+    papers = [sources.Paper(r["paper_id"], r["title"], r["abstract"], r["url"], "", []) for r in top]
+    with console.status("Laya is picking a key sentence for each top paper…"):
+        sentences = judge.key_sentences(papers, cfg)
+    text = post.render(top, sentences, also, digest_date, len(rows), cfg.categories, cfg.rank_by)
+    console.print(Markdown(text))
+    path = post.write(cfg.post_dir / f"{digest_date}.md", text)
+    console.print(f"\n[dim]Wrote {path} ({len(text.split())} words)[/dim]")
     return 0
 
 
@@ -195,6 +215,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--all", action="store_true", help="rate every shown paper instead of today's few")
     p.add_argument("--hidden", type=int, default=5, help="with --all: also rate N random hidden papers (default 5)")
     p.set_defaults(func=cmd_rate)
+
+    p = sub.add_parser("post", help="write a one-page reader's digest post from a day's ranking")
+    p.add_argument("--date", help="digest date to summarise (default: latest)")
+    p.set_defaults(func=cmd_post)
 
     p = sub.add_parser("stats", help="accuracy, calibration and latency from your ratings")
     p.set_defaults(func=cmd_stats)

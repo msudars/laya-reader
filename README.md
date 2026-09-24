@@ -61,6 +61,24 @@ arXiv announces new papers on weekdays (not Saturday or Sunday), so a morning cr
 0 8 * * 1-5  cd ~/Projects/laya-reader && ~/.local/bin/uv run laya-reader today > /dev/null
 ```
 
+## No time to read? Get a one-page post
+
+```bash
+uv run laya-reader post     # after `today`: prints the post and saves posts/YYYY-MM-DD.md
+```
+
+`post` turns the day's ranking into a short reader's digest of about 350 words:
+
+- **Today's top 3**: each paper's title, plus the one sentence from its abstract that Laya rates most likely to say what the paper proposes or finds.
+- **Also today**: the next 12 papers, by title.
+
+Nothing is generated. Laya can't write text, so every sentence in the post is quoted word for word from an abstract. It takes about 15 seconds on a CPU. Adjust the size with `post_top` and `post_total` in `profile.toml`.
+
+```markdown
+**[ChipMEM: Verification-Grounded Memory for EDA Agents](https://arxiv.org/abs/2609.27067)** · cs.LG
+We introduce ChipMEM, a verification-grounded memory layer for EDA agents.
+```
+
 ## Teach it and measure it
 
 ```bash
@@ -97,7 +115,8 @@ After a few weeks of ratings you have a labelled set that can go into Laya's [fi
 1. **Fetch.** Today's announcements come from the arXiv RSS feed (`rss.arxiv.org/rss/cs.LG+cs.AI+…`), keeping new and cross-listed papers and skipping revisions. `--date YYYY-MM-DD` uses the arXiv search API instead.
 2. **Similarity.** Laya's encoder embeds your profile and each paper (title + abstract), and papers are ranked by cosine similarity. This takes about 1 s per paper on a CPU.
 3. **Decision.** The top `shortlist` papers also get Laya's typed `noul` (yes/no) question, which takes about 1 s more each.
-4. **Store.** Papers, scores and ratings live in SQLite at `~/.local/share/laya-reader/db.sqlite` (override with `LAYA_READER_DB`).
+4. **Post.** For `post`, each sentence of the top papers' abstracts gets one short yes/no question ("does this sentence state what the paper proposes or finds?"). The earliest sentence within 0.05 of the best score wins, because abstracts state the contribution before the details.
+5. **Store.** Papers, scores and ratings live in SQLite at `~/.local/share/laya-reader/db.sqlite` (override with `LAYA_READER_DB`).
 
 ## What we learned about Laya
 
@@ -106,6 +125,7 @@ Findings from building this, on Laya 0.3.20, with the English checkpoint on a 16
 - **Zero-shot yes/no relevance is close to chance on real papers.** On 16 hand-labelled papers, Laya's `noul` answer reached AUC 0.36–0.69 depending on wording, and every paper scored between 0.67 and 0.89. Laya is built to be fine-tuned, and its README says so. The ratings you collect are what fixes this.
 - **Laya's encoder is the better zero-shot signal.** Profile↔paper similarity reached AUC 0.78 on the same papers. A small general-purpose embedding model (MiniLM) scored 0.73 in about 1/30 of the time, so if you only need similarity you don't need Laya for it.
 - **Multi-option `choice` questions collapsed.** A topic question answered the first option for every paper, and a skim/deep question always said "deep". Both were removed. The digest shows arXiv's own category instead.
+- **Picking sentences works better than judging relevance.** Asked whether a sentence says what the paper proposes or finds, Laya's top choice was a sensible summary in all 3 papers checked by hand (one after the near-tie rule), such as the "We introduce X…" sentence. It scored results sentences with numbers low. Short inputs are also cheaper: one abstract's sentences take about 5 s in total.
 - **Plain-string states beat dict states** for this question (AUC 0.69 vs 0.50).
 - **Cost grows with the number of questions.** Each question re-reads the whole state: about 1.2 s per question for a 450-token abstract on CPU. The README's 0.2–0.5 s CPU figures are for short texts.
 - **The arXiv search API was returning HTTP 406** to uncached requests in September 2026, which is why today's papers come from RSS.

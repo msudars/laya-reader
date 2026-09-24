@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from laya_reader import cli, config, judge, metrics, rating, sources
+from laya_reader import cli, config, judge, metrics, post, rating, sources
 from laya_reader.judge import HIDE, PICK, UNSURE, Decision
 from laya_reader.store import Store
 
@@ -242,3 +242,66 @@ def test_choose_skips_rated_and_falls_back():
     chosen = rating.choose(rows, 4, random.Random(0))
     assert len(chosen) == 4 and all(r["bucket"] == HIDE and r["rated"] is None for r, _ in chosen)
     assert rating.choose([dict(r, rated=0) for r in digest_rows()], 4) == []
+
+
+# ---- reader's digest post
+
+
+def test_split_sentences():
+    text = (
+        "LLMs fail silently, e.g. When tools error. We audit 91 failures (Fig. 2 shows them) "
+        "and get a 2.3x speedup over Smith et al. The code is open. Does it work? Yes."
+    )
+    assert post.split_sentences(text) == [
+        "LLMs fail silently, e.g. When tools error.",
+        "We audit 91 failures (Fig. 2 shows them) and get a 2.3x speedup over Smith et al. The code is open.",
+        "Does it work?",
+        "Yes.",
+    ]
+    assert post.split_sentences("") == []
+
+
+def test_ranked_puts_shortlist_first():
+    rows = [row(0, HIDE, 0.99), row(1, UNSURE, 0.5, 0.9), row(2, PICK, 0.8, 0.1)]
+    assert [r["paper_id"] for r in post.ranked(rows, "similarity")] == ["p2", "p1", "p0"]
+    assert [r["paper_id"] for r in post.ranked(rows, "laya")] == ["p1", "p2", "p0"]
+
+
+def post_row(i):
+    return {"title": f"Paper {i}", "url": f"https://arxiv.org/abs/2609.{i:05d}", "categories": '["cs.AI"]'}
+
+
+def test_render_post():
+    top = [post_row(i) for i in range(3)]
+    also = [post_row(i) for i in range(3, 15)]
+    text = post.render(top, ["We find A.", "We find B.", "We find C."], also, "2026-09-24", 129,
+                       ["cs.AI", "cs.CL", "eess.SP"], "similarity")
+    assert text.startswith("# Reader's digest · Thursday 24 September 2026")
+    assert "out of the 129 read today in cs.AI, cs.CL and eess.SP" in text
+    assert "## Today's top 3" in text and "We find B." in text
+    assert "15. [Paper 14](https://arxiv.org/abs/2609.00014) · cs.AI" in text
+    assert len(text.split()) < 500  # about a page
+
+
+def test_cli_post(cfg, db, monkeypatch):
+    papers = [make_paper(i) for i in range(8)]
+    monkeypatch.setattr(sources, "fetch_today", lambda cats, limit: papers[:limit])
+    monkeypatch.setattr(judge, "judge", fake_judge_factory([]))
+    monkeypatch.setattr(judge, "key_sentences", lambda ps, cfg: [f"Key {p.id}." for p in ps])
+    monkeypatch.setattr(config, "load", lambda _p=None: cfg)
+    cfg.post_dir = cfg.digest_dir.parent / "posts"
+    cfg.post_top, cfg.post_total = 2, 5
+
+    assert cli.main(["post"]) == 1  # no digest yet
+    assert cli.main(["today"]) == 0
+    assert cli.main(["post"]) == 0
+    text = next(cfg.post_dir.glob("*.md")).read_text()
+    assert "Key 2609.00000." in text and "Key 2609.00001." in text  # top 2 by similarity
+    assert "5. [Paper 4]" in text and "Paper 5" not in text
+
+
+def test_pick_key_sentence_prefers_earlier_near_ties():
+    ss = ["Background.", "We introduce X.", "Detail of X.", "Results."]
+    assert judge.pick_key_sentence(ss, [0.39, 0.83, 0.84, 0.54]) == "We introduce X."
+    assert judge.pick_key_sentence(ss, [0.39, 0.70, 0.84, 0.54]) == "Detail of X."
+    assert judge.pick_key_sentence(["Only one."], [0.1]) == "Only one."

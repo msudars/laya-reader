@@ -33,4 +33,11 @@ rank_by = "similarity"
 # similarity ranking disagree most, a random hidden one, and an "also close" one.
 daily_ratings = 4
 
+# `laya-reader post` writes a one-page reader's digest: the top `post_top`
+# papers with one key sentence each (quoted from the abstract, chosen by
+# Laya), then titles for the rest, up to `post_total` papers.
+post_top = 3
+post_total = 15
+post_dir = "posts"
+
 digest_dir = "digests"

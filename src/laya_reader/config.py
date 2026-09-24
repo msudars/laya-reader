@@ -24,6 +24,9 @@ class Config:
     top_n: int = 5
     rank_by: str = "similarity"
     daily_ratings: int = 4  # papers `rate` asks about per day
+    post_top: int = 3  # papers in the post with a key sentence
+    post_total: int = 15  # papers in the post in total
+    post_dir: Path = Path("posts")
     digest_dir: Path = Path("digests")
 
 
@@ -60,6 +63,9 @@ def load(explicit: str | None = None) -> Config:
             top_n=int(data.get("top_n", 5)),
             rank_by=str(data.get("rank_by", "similarity")),
             daily_ratings=int(data.get("daily_ratings", 4)),
+            post_top=int(data.get("post_top", 3)),
+            post_total=int(data.get("post_total", 15)),
+            post_dir=Path(data.get("post_dir", "posts")).expanduser(),
             digest_dir=Path(data.get("digest_dir", "digests")).expanduser(),
         )
     except (KeyError, TypeError, ValueError) as e:
@@ -70,6 +76,8 @@ def load(explicit: str | None = None) -> Config:
         raise ConfigError(f"{path}: rank_by must be one of {RANK_BY}")
     if not 1 <= cfg.daily_ratings <= 10:
         raise ConfigError(f"{path}: daily_ratings must be 1-10 (3-5 is the sweet spot)")
+    if not 1 <= cfg.post_top <= cfg.post_total <= 40:
+        raise ConfigError(f"{path}: need 1 <= post_top <= post_total <= 40")
     if not 1 <= cfg.top_n <= cfg.shortlist:
         raise ConfigError(f"{path}: need 1 <= top_n <= shortlist")
     return cfg

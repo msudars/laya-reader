@@ -13,3 +13,4 @@ wheels/
 profile.toml
 digests/
 *.jsonl
+posts/

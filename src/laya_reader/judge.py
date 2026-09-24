@@ -125,3 +125,42 @@ def judge(
 
     assign_buckets(decisions, cfg.top_n, cfg.rank_by)
     return decisions
+
+
+KEY_SENTENCE_QUESTION = {
+    "finding": {
+        "type": "noul",
+        "instructions": "Does this sentence state what the paper proposes or finds?",
+    }
+}
+
+
+def key_sentences(papers: list[Paper], cfg: Config, batch_size: int = 32) -> list[str]:
+    """For each paper, the abstract sentence Laya rates most likely to say what it proposes or finds.
+
+    One short row per sentence ("Paper: <title> / Sentence: <s>"), so this is cheap
+    compared with judging a whole abstract.
+    """
+    from .post import split_sentences
+
+    sentences = [split_sentences(p.abstract) or [p.abstract] for p in papers]
+    states = [f"Paper: {p.title}\nSentence: {s}" for p, ss in zip(papers, sentences) for s in ss]
+    if not states:
+        return []
+    results = _get_agent(cfg.model).predict_batch(states, KEY_SENTENCE_QUESTION, batch_size=batch_size)
+    scores = iter(r["answers"]["finding"]["noul"] for r in results)
+    return [pick_key_sentence(ss, [next(scores) for _ in ss]) for ss in sentences]
+
+
+KEY_SENTENCE_MARGIN = 0.05
+
+
+def pick_key_sentence(sentences: list[str], scores: list[float], margin: float = KEY_SENTENCE_MARGIN) -> str:
+    """The earliest sentence scoring within `margin` of the best.
+
+    Abstracts state the contribution ("We introduce X") before the details, and
+    Laya often scores both about equally: 0.83 vs 0.84 on a real abstract, where
+    the detail sentence would have been the worse summary.
+    """
+    best = max(scores)
+    return next(s for s, p in zip(sentences, scores) if p >= best - margin)
