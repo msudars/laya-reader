@@ -1,0 +1,31 @@
+# Copy to ./profile.toml (or ~/.config/laya-reader/profile.toml) and edit.
+
+# Who is reading. Every paper is compared against this text, so name concrete
+# topics. Keep it short (~40 words): Laya's English checkpoint sees 512 tokens.
+profile = """
+ML engineer who follows applied machine learning. Most interested in large
+language models, agents and reasoning, efficient training and inference, and
+evaluation. Prefers papers with practical methods or strong empirical results
+over pure theory.
+"""
+
+# arXiv categories to pull from: https://arxiv.org/category_taxonomy
+categories = ["cs.LG", "cs.AI", "cs.CL", "stat.ML"]
+
+model = "english"      # Laya checkpoint: english | multilingual | typed-decisions
+
+# Papers to read per run. These four categories announce ~400 new papers per
+# weekday; on a CPU that takes ~8 minutes (about 1 s per paper), so it suits a
+# morning cron job. Use `laya-reader today --limit 50` for a quick run.
+max_papers = 400
+
+# The `shortlist` most similar papers also get Laya's yes/no question
+# (about 1 more second each). The top `top_n` of those are your picks.
+shortlist = 20
+top_n = 5
+
+# How to order the shortlist: "similarity" (Laya's encoder) or "laya" (its
+# yes/no answer). Switch to "laya" once `laya-reader stats` shows it wins.
+rank_by = "similarity"
+
+digest_dir = "digests"

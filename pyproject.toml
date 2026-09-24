@@ -1,0 +1,25 @@
+[project]
+name = "laya-reader"
+version = "0.1.0"
+description = "A daily \"what to read next\" digest for arXiv, ranked by the Laya decision model"
+readme = "README.md"
+authors = [
+    { name = "meg-TP", email = "sudarshan.meghana@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "laya>=0.3.20",
+    "rich>=15.0.0",
+]
+
+[project.scripts]
+laya-reader = "laya_reader.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.3,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

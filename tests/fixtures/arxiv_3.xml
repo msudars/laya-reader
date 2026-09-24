@@ -1,0 +1,77 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/jCtqclg9RPqq24saiEXRV+xMOOw</id>
+  <title>arXiv Query: search_query=cat:cs.CL&amp;id_list=&amp;start=0&amp;max_results=3</title>
+  <updated>2026-09-24T08:09:20Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=cat:cs.CL&amp;start=0&amp;max_results=3&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>3</opensearch:itemsPerPage>
+  <opensearch:totalResults>119894</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2609.28471v1</id>
+    <title>Contrastive Learning for Authorship Verification</title>
+    <updated>2026-09-23T17:59:08Z</updated>
+    <link href="https://arxiv.org/abs/2609.28471v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2609.28471v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Our results show that contrastive learning outperforms a classification-based approach to authorship verification under the tested settings. We identify loss function, batch size, training duration, pre-trained model, input context length, and random text span data augmentation as important factors of model performance. Based on these considerations, we develop a ModernBERT Bi-Encoder model that achieves 98.4% accuracy on the PAN21 authorship verification task.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-09-23T17:59:08Z</published>
+    <arxiv:comment>Published in the proceedings of CLEF 2026. Code: https://github.com/petekirby/contrastive-av</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <arxiv:journal_ref>Experimental IR Meets Multilinguality, Multimodality, and Interaction (CLEF 2026), LNCS 17087, pp. 92-102, Springer (2027)</arxiv:journal_ref>
+    <author>
+      <name>Peter Kirby</name>
+    </author>
+    <arxiv:doi>10.1007/978-3-032-39150-6_7</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1007/978-3-032-39150-6_7" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2609.28449v1</id>
+    <title>Can LLMs Reason About Runtime Behavior? A Repository-Level Dynamic Benchmark</title>
+    <updated>2026-09-23T17:46:50Z</updated>
+    <link href="https://arxiv.org/abs/2609.28449v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2609.28449v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Large language models (LLMs) are increasingly used in coding tasks, but their ability to reason about code execution remains unclear. Existing repository-level QA benchmarks mainly evaluate static code understanding and often rely on LLM-based evaluation, while execution-reasoning benchmarks are mostly limited to snippets or functions. We introduce SWE-Flux, a repository-level benchmark for dynamic execution reasoning containing 480 execution-grounded instances across 12 real Python repositories, with gold answers automatically harvested from instrumented test executions rather than written manually or judged by LLMs. The benchmark covers singletest and multi-test questions over control flow, loops, program state, dataflow, exceptions, and program invariants. Evaluating five LLMs shows that this task remains challenging. The best model achieves only 37% accuracy. Models perform better on localized behavior such as invariants, intra-procedural control flow, exceptions, and simple loops, but struggle with dataflow, inter-procedural execution, precise state reasoning, and suite-level aggregation. Finally, we show that the oracle-harvesting pipeline can generate fresh benchmark variants using input perturbation. It successfully harvests valid variants for almost 90% of the selected instances, and the resulting variants are substantially more challenging for the evaluated models.</summary>
+    <category term="cs.SE" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-09-23T17:46:50Z</published>
+    <arxiv:primary_category term="cs.SE"/>
+    <author>
+      <name>Hamed Taherkhani</name>
+    </author>
+    <author>
+      <name>Mohammad Abdollahi</name>
+    </author>
+    <author>
+      <name>Melika Sepidband</name>
+    </author>
+    <author>
+      <name>Hridya Dhulipala</name>
+    </author>
+    <author>
+      <name>Tien N. Nguyen</name>
+    </author>
+    <author>
+      <name>Hadi Hemmati</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2609.28442v1</id>
+    <title>Order-Invariant Answers, Order-Sensitive Representations in Mathematical Reasoning</title>
+    <updated>2026-09-23T17:40:57Z</updated>
+    <link href="https://arxiv.org/abs/2609.28442v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2609.28442v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Reordering a set of mathematical rules without changing its meaning should preserve the correct answer, but must a model's internal representations stay invariant too? We investigate this question using synthetic multi-step function-composition problems, each presented under multiple rule orderings with the same correct answer. We measure accuracy and permutation signal-to-noise ratio (SNR), which quantifies how distinctly ordering patterns are represented relative to variation across problem instances. Across 16 language models ranging from 1B to 8B parameters, we find a pattern: models that solve reordered problems more accurately represent different rule orderings more distinctly. Layer-averaged permutation SNR is positively rank-correlated with accuracy in every synthetic setting we evaluate, with Spearman correlations reaching 0.86. These findings highlight a distinction between answer invariance and representation invariance: successful mathematical rule composition can accompany distinct internal representations between equivalent rule orderings. This motivates distinguishing answer invariance from representation invariance, and offers a representational perspective on mathematical reasoning beyond answer accuracy alone.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.SC" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2026-09-23T17:40:57Z</published>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Zhixu Silvia Tao</name>
+    </author>
+  </entry>
+</feed>
