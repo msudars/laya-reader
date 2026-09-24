@@ -16,7 +16,7 @@ from rich.markup import escape
 from rich.progress import Progress
 from rich.table import Table
 
-from . import config, digest, judge, metrics, sources
+from . import config, digest, judge, metrics, rating, sources
 from .store import Store
 
 console = Console()
@@ -57,7 +57,7 @@ def cmd_today(args, cfg: config.Config, store: Store) -> int:
         path = digest.write_markdown(cfg.digest_dir / f"{digest_date}.md", rows, digest_date, cfg.rank_by)
         console.print(f"[dim]Wrote {path}[/dim]")
     if rows:
-        console.print("[dim]Rate them with: laya-reader rate[/dim]")
+        console.print(f"[dim]Teach it with {cfg.daily_ratings} quick ratings (~1 min): laya-reader rate[/dim]")
     return 0
 
 
@@ -66,24 +66,36 @@ def cmd_rate(args, cfg: config.Config, store: Store) -> int:
     if not digest_date:
         console.print("Nothing to rate yet. Run: laya-reader today")
         return 1
-    rows = [r for r in store.digest(digest_date) if r["rated"] is None]
-    shown = [r for r in rows if r["bucket"] != judge.HIDE]
-    hidden = [r for r in rows if r["bucket"] == judge.HIDE]
-    # A few hidden papers too, so the ranking is not only judged on what it chose to show.
-    queue = shown + random.sample(hidden, min(args.hidden, len(hidden)))
+    rows = store.digest(digest_date)
+    unrated = [r for r in rows if r["rated"] is None]
+
+    if args.all:
+        # Everything shown, plus a few hidden so the ranking isn't only judged on what it showed.
+        shown = [(r, r["bucket"]) for r in unrated if r["bucket"] != judge.HIDE]
+        hidden = [r for r in unrated if r["bucket"] == judge.HIDE]
+        queue = shown + [(r, "hidden") for r in random.sample(hidden, min(args.hidden, len(hidden)))]
+    else:
+        quota = args.n or cfg.daily_ratings
+        remaining = quota - (len(rows) - len(unrated))
+        if remaining <= 0:
+            console.print(
+                f"You've rated {len(rows) - len(unrated)} papers from {digest_date}, that's today's "
+                f"{quota}. Thanks! (Want more? laya-reader rate --all)"
+            )
+            return 0
+        queue = rating.choose(rows, remaining)
     if not queue:
         console.print(f"Everything from {digest_date} is already rated.")
         return 0
 
     console.print(
-        f"Rating {len(queue)} papers from {digest_date} ({len(shown)} shown + "
-        f"{len(queue) - len(shown)} random hidden).\n"
+        f"{len(queue)} papers from {digest_date} to rate. "
         "[bold]y[/bold] want to read · [bold]n[/bold] not for me · [bold]s[/bold] skip · "
         "[bold]q[/bold] quit."
     )
     done = 0
-    for i, r in enumerate(queue, 1):
-        console.rule(f"{i}/{len(queue)}")
+    for i, (r, reason) in enumerate(queue, 1):
+        console.rule(f"{i}/{len(queue)} · {reason}")
         console.print(f"[bold]{escape(r['title'])}[/bold]\n[dim]{r['url']}[/dim]")
         console.print(escape(textwrap.shorten(r["abstract"], 600, placeholder=" …")))
         laya = "not asked" if r["p_relevant"] is None else f"{r['p_relevant']:.2f}"
@@ -177,9 +189,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-md", action="store_true", help="don't write the Markdown digest")
     p.set_defaults(func=cmd_today)
 
-    p = sub.add_parser("rate", help="rate a digest's papers y/n to measure Laya")
+    p = sub.add_parser("rate", help="rate today's few most useful papers y/n (daily_ratings in profile)")
     p.add_argument("--date", help="digest date to rate (default: latest)")
-    p.add_argument("--hidden", type=int, default=5, help="also rate N random hidden papers (default 5)")
+    p.add_argument("-n", type=int, help="papers to rate today (default: daily_ratings in profile)")
+    p.add_argument("--all", action="store_true", help="rate every shown paper instead of today's few")
+    p.add_argument("--hidden", type=int, default=5, help="with --all: also rate N random hidden papers (default 5)")
     p.set_defaults(func=cmd_rate)
 
     p = sub.add_parser("stats", help="accuracy, calibration and latency from your ratings")

@@ -23,6 +23,7 @@ class Config:
     shortlist: int = 20  # papers that get Laya's yes/no question
     top_n: int = 5
     rank_by: str = "similarity"
+    daily_ratings: int = 4  # papers `rate` asks about per day
     digest_dir: Path = Path("digests")
 
 
@@ -58,6 +59,7 @@ def load(explicit: str | None = None) -> Config:
             shortlist=int(data.get("shortlist", 20)),
             top_n=int(data.get("top_n", 5)),
             rank_by=str(data.get("rank_by", "similarity")),
+            daily_ratings=int(data.get("daily_ratings", 4)),
             digest_dir=Path(data.get("digest_dir", "digests")).expanduser(),
         )
     except (KeyError, TypeError, ValueError) as e:
@@ -66,6 +68,8 @@ def load(explicit: str | None = None) -> Config:
         raise ConfigError(f"{path}: 'categories' is empty")
     if cfg.rank_by not in RANK_BY:
         raise ConfigError(f"{path}: rank_by must be one of {RANK_BY}")
+    if not 1 <= cfg.daily_ratings <= 10:
+        raise ConfigError(f"{path}: daily_ratings must be 1-10 (3-5 is the sweet spot)")
     if not 1 <= cfg.top_n <= cfg.shortlist:
         raise ConfigError(f"{path}: need 1 <= top_n <= shortlist")
     return cfg

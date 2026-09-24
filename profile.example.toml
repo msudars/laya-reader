@@ -28,4 +28,9 @@ top_n = 5
 # yes/no answer). Switch to "laya" once `laya-reader stats` shows it wins.
 rank_by = "similarity"
 
+# `laya-reader rate` asks about this many papers a day (3-5 works well), each
+# chosen to teach the most: a top pick, the paper where Laya's yes/no and the
+# similarity ranking disagree most, a random hidden one, and an "also close" one.
+daily_ratings = 4
+
 digest_dir = "digests"

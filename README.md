@@ -64,11 +64,22 @@ arXiv announces new papers on weekdays (not Saturday or Sunday), so a morning cr
 ## Teach it and measure it
 
 ```bash
-uv run laya-reader rate     # go through the latest digest: y = want to read, n = not for me, s = skip, q = quit
+uv run laya-reader rate     # about 1 minute a day: y = want to read, n = not for me, s = skip, q = quit
 uv run laya-reader stats    # how well is it doing?
 ```
 
-`rate` shows the top picks and the "also close" papers, plus 5 random hidden ones (`--hidden N`), so the ranking isn't only judged on what it chose to show. `stats` reports:
+`rate` asks about only a few papers a day (`daily_ratings` in `profile.toml`, 4 by default; 3–5 works well). Each one is chosen for what it teaches:
+
+1. **A random top pick**: are the picks any good?
+2. **The paper where Laya's yes/no and the similarity ranking disagree most**: the most useful label for fine-tuning, and it shows which signal to trust.
+3. **A random hidden paper**: is the ranking missing things? Without these, the ranking would only be judged on papers it chose to show.
+4. **One from "also close"**, then another top pick if you asked for 5.
+
+Once today's quota is done, `rate` says so and stops. On days you feel like doing more, `rate --all` walks through every shown paper plus a few hidden ones (`--hidden N`), and `rate -n 2` asks about just two.
+
+At 4 a day you have about 80 ratings after a month of weekdays. That gives `stats` a rough comparison of the two signals, and a first labelled set to try fine-tuning with.
+
+`stats` reports:
 
 - **Top-pick precision**: the share of the picks you actually wanted.
 - **AUC for each signal**: how often a paper you wanted ranks above one you didn't. 0.5 is a coin flip; 1.0 is perfect. It compares Laya's encoder similarity with Laya's yes/no answer, and suggests `rank_by = "laya"` once the yes/no answer does better.

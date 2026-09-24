@@ -1,4 +1,5 @@
 import io
+import random
 import re
 import urllib.error
 from datetime import date
@@ -6,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from laya_reader import cli, config, judge, metrics, sources
+from laya_reader import cli, config, judge, metrics, rating, sources
 from laya_reader.judge import HIDE, PICK, UNSURE, Decision
 from laya_reader.store import Store
 
@@ -179,15 +180,23 @@ def test_cli_today_rerun_rate_stats_export(cfg, db, monkeypatch, tmp_path):
     assert cli.main(["today"]) == 0
     assert calls == [8]  # second run judged nothing new
 
-    answers = iter(["y", "n", "y", "n", "q"])
+    answers = iter(["y", "n", "y", "n"])
     monkeypatch.setattr(cli.console, "input", lambda prompt="": next(answers))
-    assert cli.main(["rate", "--hidden", "2"]) == 0
+    assert cli.main(["rate"]) == 0  # daily_ratings = 4
+    assert len(Store().rated()) == 4
+    assert cli.main(["rate"]) == 0  # quota done: asks nothing (next(answers) would raise)
     assert len(Store().rated()) == 4
     assert cli.main(["stats"]) == 0
 
     out = tmp_path / "out.jsonl"
     assert cli.main(["export", str(out)]) == 0
     assert out.read_text().count("\n") == 4
+
+    answers = iter(["y"] * 20)
+    assert cli.main(["rate", "--all", "--hidden", "1"]) == 0
+    store = Store()
+    rows = store.digest(store.latest_digest_date())
+    assert all(r["rated"] is not None for r in rows if r["bucket"] != HIDE)
 
 
 def test_titles_with_brackets_survive_rendering():
@@ -200,3 +209,36 @@ def test_titles_with_brackets_survive_rendering():
     console = Console(record=True, width=200)
     digest.print_digest(console, [row], "2026-09-24", "similarity")
     assert "[RE] Reproducing [bold] claims" in console.export_text()
+
+
+# ---- choosing today's few ratings
+
+
+def row(i, bucket, sim, p=None, rated=None):
+    return {"paper_id": f"p{i}", "bucket": bucket, "sim": sim, "p_relevant": p, "rated": rated}
+
+
+def digest_rows():
+    # shortlist p0..p5 ranked by sim; Laya ranks p5 first and p0 last -> p5 and p0 disagree most
+    ps = [0.60, 0.70, 0.75, 0.72, 0.71, 0.90]
+    rows = [row(i, PICK if i < 3 else UNSURE, 0.99 - i / 100, ps[i]) for i in range(6)]
+    return rows + [row(i, HIDE, 0.5 - i / 100) for i in range(6, 12)]
+
+
+@pytest.mark.parametrize("n", [3, 4, 5])
+def test_choose_fills_each_slot(n):
+    chosen = rating.choose(digest_rows(), n, random.Random(0))
+    reasons = [reason for _, reason in chosen]
+    assert reasons == rating.SLOTS[:n]
+    by_reason = dict((reason, r) for r, reason in chosen)
+    assert by_reason[rating.TOP_PICK]["bucket"] == PICK
+    assert by_reason[rating.HIDDEN]["bucket"] == HIDE
+    assert by_reason[rating.DISAGREE]["paper_id"] in {"p0", "p5"}
+    assert len({r["paper_id"] for r, _ in chosen}) == n  # no repeats
+
+
+def test_choose_skips_rated_and_falls_back():
+    rows = [dict(r, rated=1) if r["bucket"] != HIDE else r for r in digest_rows()]
+    chosen = rating.choose(rows, 4, random.Random(0))
+    assert len(chosen) == 4 and all(r["bucket"] == HIDE and r["rated"] is None for r, _ in chosen)
+    assert rating.choose([dict(r, rated=0) for r in digest_rows()], 4) == []
