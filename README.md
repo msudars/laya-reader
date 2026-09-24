@@ -1,6 +1,6 @@
-# laya-reader
+# What to read next? 
 
-**What to read next.** A daily digest of new arXiv papers, ranked against your own reading profile by the open-source [Laya](https://github.com/NandhaKishorM/laya) decision model. It runs locally on a CPU, needs no API key, and uses only open data.
+A daily digest of new arXiv papers, ranked against your own reading profile by the open-source [Laya](https://github.com/NandhaKishorM/laya) decision model. It runs locally on a CPU, needs no API key, and uses only open data.
 
 It is also a small experiment in how usable Laya is day to day: you rate its picks, and `laya-reader stats` tells you how good they were.
 
